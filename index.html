@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Schedule Grid</title>
+    <style>
+        .container {
+            display: flex;
+        }
+        .schedule {
+            display: grid;
+            grid-template-columns: 100px repeat(7, 100px);
+            grid-template-rows: 40px repeat(16, 30px);
+            gap: 1px;
+            text-align: center;
+            user-select: none; /* Prevent text selection */
+        }
+        .header, .time-label, .cell {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #eee;
+        }
+        .header {
+            font-weight: bold;
+            background-color: #ddd;
+        }
+        .cell {
+            cursor: pointer;
+            border-bottom: 1px solid #ccc;
+            border-right: 1px solid #ccc;
+        }
+        .time-label {
+            border-bottom: 1px solid #ccc;
+        }
+        .sidebar {
+            margin-left: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="schedule" id="schedule"></div>
+        <div class="sidebar" id="sidebar"></div>
+    </div>
+    <script>
+        const schedule = document.getElementById("schedule");
+        const sidebar = document.getElementById("sidebar");
+        let isMouseDown = false;
+        let eraseMode = false;
+        const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+        const people = ["All", ...Array.from({ length: 10 }, (_, i) => `Person ${i + 1}`)];
+        let activePerson = "Person 1";
+        let personData = {};
+        
+        people.forEach(person => {
+            personData[person] = new Map();
+        });
+
+        sidebar.innerHTML = people.map(person => `
+            <label>
+                <input type="radio" name="person" value="${person}" ${person === activePerson ? "checked" : ""}>
+                ${person}
+            </label>
+        `).join("<br>");
+
+        schedule.appendChild(document.createElement("div")); // Empty top-left cell
+        days.forEach(day => {
+            let dayHeader = document.createElement("div");
+            dayHeader.classList.add("header");
+            dayHeader.textContent = day;
+            schedule.appendChild(dayHeader);
+        });
+
+        for (let hour = 8; hour < 24; hour++) {
+            let timeLabel = document.createElement("div");
+            timeLabel.classList.add("time-label");
+            timeLabel.textContent = `${hour}:00`;
+            schedule.appendChild(timeLabel);
+            
+            for (let day = 0; day < 7; day++) {
+                let cell = document.createElement("div");
+                cell.classList.add("cell");
+                let key = `${day}-${hour}`;
+                
+                cell.addEventListener("mousedown", () => {
+                    if (activePerson === "All") return;
+                    isMouseDown = true;
+                    eraseMode = personData[activePerson].get(key) === "blue";
+                    cell.style.backgroundColor = eraseMode ? "#eee" : "blue";
+                    personData[activePerson].set(key, eraseMode ? "#eee" : "blue");
+                });
+
+                cell.addEventListener("mouseover", () => {
+                    if (isMouseDown && activePerson !== "All") {
+                        cell.style.backgroundColor = eraseMode ? "#eee" : "blue";
+                        personData[activePerson].set(key, eraseMode ? "#eee" : "blue");
+                    }
+                });
+                
+                schedule.appendChild(cell);
+            }
+        }
+
+        document.addEventListener("mouseup", () => {
+            isMouseDown = false;
+        });
+
+        document.querySelectorAll('input[name="person"]').forEach(input => {
+            input.addEventListener("change", (e) => {
+                activePerson = e.target.value;
+                updateGrid();
+            });
+        });
+
+        function updateGrid() {
+            const cells = document.querySelectorAll(".cell");
+            if (activePerson === "All") {
+                cells.forEach((cell, index) => {
+                    let day = index % 7;
+                    let hour = Math.floor(index / 7) + 8;
+                    let key = `${day}-${hour}`;
+                    let count = people.slice(1).reduce((sum, person) => sum + (personData[person].get(key) === "blue" ? 1 : 0), 0);
+                    cell.style.backgroundColor = count > 0 ? `rgba(0, 0, 255, ${0.05 * count})` : "#eee";
+                });
+            } else {
+                cells.forEach((cell, index) => {
+                    let day = index % 7;
+                    let hour = Math.floor(index / 7) + 8;
+                    let key = `${day}-${hour}`;
+                    cell.style.backgroundColor = personData[activePerson].get(key) || "#eee";
+                });
+            }
+        }
+    </script>
+</body>
+</html>
