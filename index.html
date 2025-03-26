@@ -51,13 +51,14 @@
         const sidebar = document.getElementById("sidebar");
         let isMouseDown = false;
         let eraseMode = false;
+        let startCell = null;
         const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
         const people = ["All", ...Array.from({ length: 10 }, (_, i) => `Person ${i + 1}`)];
         let activePerson = "Person 1";
-        let personData = {};
+        let personData = JSON.parse(localStorage.getItem("personData")) || {};
         
         people.forEach(person => {
-            personData[person] = new Map();
+            if (!personData[person]) personData[person] = {};
         });
 
         sidebar.innerHTML = people.map(person => `
@@ -75,6 +76,7 @@
             schedule.appendChild(dayHeader);
         });
 
+        const cells = [];
         for (let hour = 8; hour < 24; hour++) {
             let timeLabel = document.createElement("div");
             timeLabel.classList.add("time-label");
@@ -85,19 +87,19 @@
                 let cell = document.createElement("div");
                 cell.classList.add("cell");
                 let key = `${day}-${hour}`;
+                cells.push({ cell, key, day, hour });
                 
-                cell.addEventListener("mousedown", () => {
+                cell.addEventListener("mousedown", (e) => {
                     if (activePerson === "All") return;
                     isMouseDown = true;
-                    eraseMode = personData[activePerson].get(key) === "blue";
-                    cell.style.backgroundColor = eraseMode ? "#eee" : "blue";
-                    personData[activePerson].set(key, eraseMode ? "#eee" : "blue");
+                    eraseMode = personData[activePerson][key] === "blue";
+                    startCell = { day, hour };
+                    updateRectangle(startCell, startCell);
                 });
-
-                cell.addEventListener("mouseover", () => {
+                
+                cell.addEventListener("mouseover", (e) => {
                     if (isMouseDown && activePerson !== "All") {
-                        cell.style.backgroundColor = eraseMode ? "#eee" : "blue";
-                        personData[activePerson].set(key, eraseMode ? "#eee" : "blue");
+                        updateRectangle(startCell, { day, hour });
                     }
                 });
                 
@@ -107,6 +109,7 @@
 
         document.addEventListener("mouseup", () => {
             isMouseDown = false;
+            localStorage.setItem("personData", JSON.stringify(personData));
         });
 
         document.querySelectorAll('input[name="person"]').forEach(input => {
@@ -116,25 +119,32 @@
             });
         });
 
-        function updateGrid() {
-            const cells = document.querySelectorAll(".cell");
-            if (activePerson === "All") {
-                cells.forEach((cell, index) => {
-                    let day = index % 7;
-                    let hour = Math.floor(index / 7) + 8;
-                    let key = `${day}-${hour}`;
-                    let count = people.slice(1).reduce((sum, person) => sum + (personData[person].get(key) === "blue" ? 1 : 0), 0);
-                    cell.style.backgroundColor = count > 0 ? `rgba(0, 0, 255, ${0.05 * count})` : "#eee";
-                });
-            } else {
-                cells.forEach((cell, index) => {
-                    let day = index % 7;
-                    let hour = Math.floor(index / 7) + 8;
-                    let key = `${day}-${hour}`;
-                    cell.style.backgroundColor = personData[activePerson].get(key) || "#eee";
-                });
-            }
+        function updateRectangle(start, end) {
+            let minDay = Math.min(start.day, end.day);
+            let maxDay = Math.max(start.day, end.day);
+            let minHour = Math.min(start.hour, end.hour);
+            let maxHour = Math.max(start.hour, end.hour);
+
+            cells.forEach(({ cell, day, hour, key }) => {
+                if (day >= minDay && day <= maxDay && hour >= minHour && hour <= maxHour) {
+                    cell.style.backgroundColor = eraseMode ? "#eee" : "blue";
+                    personData[activePerson][key] = eraseMode ? "#eee" : "blue";
+                }
+            });
         }
+
+        function updateGrid() {
+            cells.forEach(({ cell, key }) => {
+                if (activePerson === "All") {
+                    let count = people.slice(1).reduce((sum, person) => sum + (personData[person][key] === "blue" ? 1 : 0), 0);
+                    cell.style.backgroundColor = count > 0 ? `rgba(0, 0, 255, ${0.05 * count})` : "#eee";
+                } else {
+                    cell.style.backgroundColor = personData[activePerson][key] || "#eee";
+                }
+            });
+        }
+
+        updateGrid();
     </script>
 </body>
 </html>
