@@ -39,12 +39,17 @@
             display: flex;
             flex-direction: column;
         }
+        .sidebar button {
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="schedule" id="schedule"></div>
-        <div class="sidebar" id="sidebar"></div>
+        <div class="sidebar" id="sidebar">
+            <button onclick="addPerson()">Add Person</button>
+        </div>
     </div>
     <script>
         const schedule = document.getElementById("schedule");
@@ -53,98 +58,130 @@
         let eraseMode = false;
         let startCell = null;
         const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-        const people = ["All", ...Array.from({ length: 10 }, (_, i) => `Person ${i + 1}`)];
-        let activePerson = "Person 1";
+        let people = JSON.parse(localStorage.getItem("people")) || ["All", "Person 1"];
+        let activePerson = people[1];
         let personData = JSON.parse(localStorage.getItem("personData")) || {};
         
-        people.forEach(person => {
-            if (!personData[person]) personData[person] = {};
-        });
-
-        sidebar.innerHTML = people.map(person => `
-            <label>
-                <input type="radio" name="person" value="${person}" ${person === activePerson ? "checked" : ""}>
-                ${person}
-            </label>
-        `).join("<br>");
-
-        schedule.appendChild(document.createElement("div")); // Empty top-left cell
-        days.forEach(day => {
-            let dayHeader = document.createElement("div");
-            dayHeader.classList.add("header");
-            dayHeader.textContent = day;
-            schedule.appendChild(dayHeader);
-        });
-
-        const cells = [];
-        for (let hour = 8; hour < 24; hour++) {
-            let timeLabel = document.createElement("div");
-            timeLabel.classList.add("time-label");
-            timeLabel.textContent = `${hour}:00`;
-            schedule.appendChild(timeLabel);
-            
-            for (let day = 0; day < 7; day++) {
-                let cell = document.createElement("div");
-                cell.classList.add("cell");
-                let key = `${day}-${hour}`;
-                cells.push({ cell, key, day, hour });
-                
-                cell.addEventListener("mousedown", (e) => {
-                    if (activePerson === "All") return;
-                    isMouseDown = true;
-                    eraseMode = personData[activePerson][key] === "blue";
-                    startCell = { day, hour };
-                    updateRectangle(startCell, startCell);
-                });
-                
-                cell.addEventListener("mouseover", (e) => {
-                    if (isMouseDown && activePerson !== "All") {
-                        updateRectangle(startCell, { day, hour });
-                    }
-                });
-                
-                schedule.appendChild(cell);
-            }
+        function saveData() {
+            localStorage.setItem("people", JSON.stringify(people));
+            localStorage.setItem("personData", JSON.stringify(personData));
         }
 
-        document.addEventListener("mouseup", () => {
-            isMouseDown = false;
-            localStorage.setItem("personData", JSON.stringify(personData));
-        });
-
-        document.querySelectorAll('input[name="person"]').forEach(input => {
-            input.addEventListener("change", (e) => {
-                activePerson = e.target.value;
-                updateGrid();
+        function renderSidebar() {
+            sidebar.innerHTML = `<button onclick="addPerson()">Add Person</button><br><br>` + people.map(person => `
+                <div>
+                    <label>
+                        <input type="radio" name="person" value="${person}" ${person === activePerson ? "checked" : ""}>
+                        ${person}
+                    </label>
+                    ${person !== "All" ? `<button onclick="removePerson('${person}')">X</button>` : ""}
+                </div>
+            `).join("");
+            
+            document.querySelectorAll('input[name="person"]').forEach(input => {
+                input.addEventListener("change", (e) => {
+                    activePerson = e.target.value;
+                    updateGrid();
+                });
             });
-        });
+        }
+
+        function addPerson() {
+            const newPerson = `Person ${people.length}`;
+            people.push(newPerson);
+            personData[newPerson] = {};
+            saveData();
+            renderSidebar();
+        }
+
+        function removePerson(person) {
+            people = people.filter(p => p !== person);
+            delete personData[person];
+            saveData();
+            renderSidebar();
+            updateGrid();
+        }
+
+        function createGrid() {
+            schedule.innerHTML = "";
+            schedule.appendChild(document.createElement("div"));
+            days.forEach(day => {
+                let dayHeader = document.createElement("div");
+                dayHeader.classList.add("header");
+                dayHeader.textContent = day;
+                schedule.appendChild(dayHeader);
+            });
+
+            for (let hour = 8; hour < 24; hour++) {
+                let timeLabel = document.createElement("div");
+                timeLabel.classList.add("time-label");
+                timeLabel.textContent = `${hour}:00`;
+                schedule.appendChild(timeLabel);
+                
+                for (let day = 0; day < 7; day++) {
+                    let cell = document.createElement("div");
+                    cell.classList.add("cell");
+                    let key = `${day}-${hour}`;
+                    
+                    cell.addEventListener("mousedown", () => {
+                        if (activePerson === "All") return;
+                        isMouseDown = true;
+                        eraseMode = personData[activePerson][key] === "blue";
+                        startCell = { day, hour };
+                        updateRectangle(startCell, startCell);
+                    });
+                    
+                    cell.addEventListener("mouseover", () => {
+                        if (isMouseDown && activePerson !== "All") {
+                            updateRectangle(startCell, { day, hour });
+                        }
+                    });
+                    
+                    schedule.appendChild(cell);
+                }
+            }
+            updateGrid();
+        }
 
         function updateRectangle(start, end) {
-            let minDay = Math.min(start.day, end.day);
-            let maxDay = Math.max(start.day, end.day);
-            let minHour = Math.min(start.hour, end.hour);
-            let maxHour = Math.max(start.hour, end.hour);
-
-            cells.forEach(({ cell, day, hour, key }) => {
-                if (day >= minDay && day <= maxDay && hour >= minHour && hour <= maxHour) {
-                    cell.style.backgroundColor = eraseMode ? "#eee" : "blue";
-                    personData[activePerson][key] = eraseMode ? "#eee" : "blue";
+            const minDay = Math.min(start.day, end.day);
+            const maxDay = Math.max(start.day, end.day);
+            const minHour = Math.min(start.hour, end.hour);
+            const maxHour = Math.max(start.hour, end.hour);
+            
+            for (let hour = minHour; hour <= maxHour; hour++) {
+                for (let day = minDay; day <= maxDay; day++) {
+                    let key = `${day}-${hour}`;
+                    if (eraseMode) {
+                        delete personData[activePerson][key];
+                    } else {
+                        personData[activePerson][key] = "blue";
+                    }
                 }
-            });
+            }
+            saveData();
+            updateGrid();
         }
 
         function updateGrid() {
-            cells.forEach(({ cell, key }) => {
+            document.querySelectorAll(".cell").forEach((cell, index) => {
+                const day = index % 7;
+                const hour = Math.floor(index / 7) + 8;
+                const key = `${day}-${hour}`;
+                
                 if (activePerson === "All") {
-                    let count = people.slice(1).reduce((sum, person) => sum + (personData[person][key] === "blue" ? 1 : 0), 0);
-                    cell.style.backgroundColor = count > 0 ? `rgba(0, 0, 255, ${0.05 * count})` : "#eee";
+                    let count = Object.values(personData).filter(person => person[key]).length;
+                    cell.style.backgroundColor = count ? `rgba(0, 0, 255, ${count * 0.05})` : "";
                 } else {
-                    cell.style.backgroundColor = personData[activePerson][key] || "#eee";
+                    cell.style.backgroundColor = personData[activePerson][key] || "";
                 }
             });
         }
 
-        updateGrid();
+        document.addEventListener("mouseup", () => isMouseDown = false);
+
+        createGrid();
+        renderSidebar();
     </script>
 </body>
 </html>
